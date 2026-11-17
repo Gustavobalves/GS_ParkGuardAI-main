@@ -1,0 +1,9 @@
+# PARKGUARD AI — React prototype
+
+Run locally: `npm install` then `npm run dev`.
+
+Features: login and registration flow, accessibility preferences captured at signup and used in the dashboard, parking search/filter, road reports, profile, and an interactive OpenStreetMap with nearby place suggestions from Photon, CEP lookup through ViaCEP, address geocoding through Nominatim, illustrative street-parking markers placed on mapped OpenStreetMap road geometry within the 1 km destination radius, illustrative garage markers, mapped parking and accessibility details from Overpass, browser geolocation, and driving routes via OSRM.
+
+**Prototype limits:** accounts and preferences are stored only in the browser; this is not production-grade authentication and does not use a server. Do not use real or sensitive passwords. Photon provides nearby place suggestions; ViaCEP is used for CEP lookup and is a free third-party service, not an official Correios API. Street dashes are placed on mapped road geometry inside the destination radius; their blue/red states are simulated and do not represent actual parking availability or accessibility. Garage markers are illustrative. Hover over or select an illustrative marker to see its name. OpenStreetMap may show mapped parking and accessibility details, but tags may be incomplete and it does not provide live free-space availability. The dashboard's sample vacancy counts are not live data, and there are no actual reservations, AI vision, or camera/sensor integration. The browser asks for location permission when a route is searched. Photon, ViaCEP, Nominatim, the Overpass API, and the OSRM demo service are subject to service availability and usage limits. Validate accessibility information with people with disabilities before real-world use.
+
+For production or high-traffic use, connect appropriately hosted geocoding and routing services and a trusted source of real-time parking availability.
