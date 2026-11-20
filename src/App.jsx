@@ -41,7 +41,7 @@ function offsetCoordinates([latitude, longitude], meters, bearingDegrees) {
 function createDemoMapPlaces(center, roadLines = []) {
   const streetCoordinateKeys = new Set();
   const streetCoordinates = roadLines
-    .flatMap(line => line)
+    .flatMap(line => Array.isArray(line) ? line : line?.geometry || [])
     .map(point => [point.lat, point.lon])
     .filter(point => {
       if (!Number.isFinite(point[0]) || !Number.isFinite(point[1]) || distanceInMeters(center, point) > destinationRadius) return false;
@@ -343,7 +343,7 @@ export default function App() {
     setOsmParkingError('');
     setOsmParkingLoading(true);
     const [latitude, longitude] = coordinates;
-    const query = `[out:json][timeout:15];nwr["amenity"~"^(parking|parking_space)$"](around:${destinationRadius},${latitude},${longitude});out center tags;way["highway"~"^(primary|secondary|tertiary|unclassified|residential|living_street|service)$"](around:${destinationRadius},${latitude},${longitude});out geom;`;
+    const query = `[out:json][timeout:20];nwr["amenity"~"^(parking|parking_space)$"](around:${destinationRadius},${latitude},${longitude});out center tags;way["highway"]["highway"!~"^(footway|path|cycleway|steps|pedestrian|track|bridleway|construction|proposed)$"](around:${destinationRadius},${latitude},${longitude});out geom tags;`;
     const controller = new AbortController();
     osmRequestController.current = controller;
     const timeout = window.setTimeout(() => controller.abort(), 18000);
@@ -385,10 +385,16 @@ export default function App() {
 
       const roads = data.elements
         .filter(element => element.tags?.highway && Array.isArray(element.geometry))
-        .map(element => element.geometry.filter(point =>
-          Number.isFinite(point.lat) && Number.isFinite(point.lon)
-        ))
-        .filter(geometry => geometry.length > 1);
+        .map(element => ({
+          id: `${element.type}-${element.id}`,
+          name: element.tags.name || element.tags.ref || 'Via sem nome',
+          highway: element.tags.highway,
+          tags: element.tags,
+          geometry: element.geometry
+            .filter(point => Number.isFinite(point.lat) && Number.isFinite(point.lon)
+              && distanceInMeters(coordinates, [point.lat, point.lon]) <= destinationRadius)
+        }))
+        .filter(road => road.geometry.length > 1);
 
       if (requestId === osmRequestId.current) {
         setOsmParking(locations);
@@ -511,7 +517,7 @@ export default function App() {
     <div className="price"><b>OpenStreetMap</b><small>{place.capacity ? `Capacidade: ${place.capacity}` : 'Vagas livres não informadas'}</small></div>
   </article>;
   const destinationResults = <>
-    <p className="map-status">Os traços azuis e vermelhos ficam sobre vias mapeadas no OpenStreetMap, dentro do raio de 1 km, e mostram vagas livres ou ocupadas apenas na simulação. Passe o cursor ou toque nos pontos para ver seus nomes; eles não indicam disponibilidade real. ♿ indica acessibilidade de demonstração.</p>
+    <p className="map-status">Todas as vias mapeadas no OpenStreetMap dentro do raio de 1 km são destacadas: verde = estacionamento permitido na simulação, roxo = estacionamento proibido e vermelho = ocupada na simulação. Passe o cursor ou toque em uma via para ver seu nome e status. Nenhuma cor confirma disponibilidade real.</p>
     {filteredPlaces.length > 0 && <>
       <h4 className="result-group-title">Vagas cadastradas (demonstração)</h4>
       {filteredPlaces.map(card)}
@@ -564,19 +570,19 @@ export default function App() {
             <p>Encontre vagas, evite riscos e descubra rotas acessíveis. Tudo conectado em um só lugar.</p>
             {destinationSearch('Buscar →')}
             <small>♿ Rotas acessíveis　　⌖ Alertas inteligentes　　▣ Vagas disponíveis</small></div>
-            <MapArt center={mapCenter} title="Mapa de São Paulo" places={destinationCoordinates ? mapPlaces : destinationPlaces} osmParking={filteredOsmParking} userLocation={userLocation} routeCoordinates={routeCoordinates} destinationCoordinates={destinationCoordinates} />
+            <MapArt center={mapCenter} title="Mapa de São Paulo" places={destinationCoordinates ? mapPlaces : destinationPlaces} osmParking={filteredOsmParking} osmRoads={osmRoads} userLocation={userLocation} routeCoordinates={routeCoordinates} destinationCoordinates={destinationCoordinates} />
           </section>
           <div className="stats"><Stat n={destinationCoordinates ? filteredPlaces.reduce((sum, place) => sum + place.spots, 0) : places.reduce((sum, place) => sum + place.spots, 0)} t={destinationCoordinates ? 'Vagas (demonstração)' : 'Vagas de demonstração'} /><Stat n={destinationCoordinates ? filteredOsmParking.filter(place => place.accessible).length : places.filter(place => place.access).length} t={destinationCoordinates ? 'Acessibilidade mapeada' : 'Acessíveis (demonstração)'} /><Stat n={alerts.length} t="Alertas ativos" /><Stat n="04" t="Rotas inclusivas" /></div>
           <Section title={destinationCoordinates ? 'Vagas e estacionamentos próximos' : 'Estacionamentos de demonstração'} action="Ver mapa completo" click={() => setTab('Mapa')} />
           <div className="columns"><div>{destinationCoordinates
             ? destinationResults
-            : destinationPlaces.slice(0, 3).map(card)}</div><div className="panel"><h3>Mapa inteligente <small>Estacionamentos e ruas · OpenStreetMap</small></h3><MapArt center={mapCenter} title="Mapa inteligente de vagas" places={destinationCoordinates ? mapPlaces : destinationPlaces} osmParking={filteredOsmParking} userLocation={userLocation} routeCoordinates={routeCoordinates} destinationCoordinates={destinationCoordinates} /><Legend osm={Boolean(destinationCoordinates)} /></div></div>
+            : destinationPlaces.slice(0, 3).map(card)}</div><div className="panel"><h3>Mapa inteligente <small>Estacionamentos e ruas · OpenStreetMap</small></h3><MapArt center={mapCenter} title="Mapa inteligente de vagas" places={destinationCoordinates ? mapPlaces : destinationPlaces} osmParking={filteredOsmParking} osmRoads={osmRoads} userLocation={userLocation} routeCoordinates={routeCoordinates} destinationCoordinates={destinationCoordinates} /><Legend osm={Boolean(destinationCoordinates)} /></div></div>
           <Section title="Alertas recentes" action="Ver todos" click={() => setTab('Alertas na via')} />
           <div className="alerts">{alerts.slice(0, 3).map(alert => <Alert key={alert.id} a={alert} />)}</div>
           <div className="inclusive"><Accessibility /><div><label>INCLUSIVE MOBILITY</label><h2>Não basta chegar. É preciso que todos consigam chegar.</h2><p>Vagas acessíveis, rotas sem barreiras e recursos de acessibilidade.</p></div><button onClick={() => setTab('Rotas acessíveis')}>Explorar acessibilidade →</button></div>
         </>}
 
-        {tab === 'Mapa' && <div className="mapgrid"><div className="panel"><h3>{destinationCoordinates ? 'Vagas e estacionamentos em até 1 km do destino' : 'Vagas próximas e sua rota'} <small>Ruas, estacionamentos e acessibilidade · OpenStreetMap</small></h3><MapArt center={mapCenter} title="Mapa de disponibilidade" places={mapPlaces} osmParking={filteredOsmParking} userLocation={userLocation} routeCoordinates={routeCoordinates} destinationCoordinates={destinationCoordinates} /><Legend osm={Boolean(destinationCoordinates)} />{destinationCoordinates && <p className="map-status">Os traços de rua seguem vias mapeadas no OpenStreetMap dentro do raio de 1 km. Os nomes aparecem ao passar o cursor ou tocar nos pontos; azul = livre e vermelho = ocupada apenas na simulação. Nenhum ponto confirma disponibilidade real. ♿ indica acessibilidade de demonstração.</p>}{routeCoordinates.length > 0 && <p className="map-status">Rota de carro exibida a partir da sua localização atual.</p>}</div>
+        {tab === 'Mapa' && <div className="mapgrid"><div className="panel"><h3>{destinationCoordinates ? 'Vagas e estacionamentos em até 1 km do destino' : 'Vagas próximas e sua rota'} <small>Ruas, estacionamentos e acessibilidade · OpenStreetMap</small></h3><MapArt center={mapCenter} title="Mapa de disponibilidade" places={mapPlaces} osmParking={filteredOsmParking} osmRoads={osmRoads} userLocation={userLocation} routeCoordinates={routeCoordinates} destinationCoordinates={destinationCoordinates} /><Legend osm={Boolean(destinationCoordinates)} />{destinationCoordinates && <p className="map-status">Todas as vias mapeadas no OpenStreetMap dentro do raio de 1 km recebem uma indicação visual: verde = estacionamento permitido na simulação, roxo = estacionamento proibido e vermelho = ocupada na simulação. Clique ou passe o cursor sobre uma via para ver seu nome e status. Nenhuma cor confirma disponibilidade real.</p>}{routeCoordinates.length > 0 && <p className="map-status">Rota de carro exibida a partir da sua localização atual.</p>}</div>
           <div className="panel"><h3>{destinationCoordinates ? 'Locais em até 1 km do destino' : 'Vagas próximas'}</h3><div className="search"><Search /><input placeholder="Buscar estacionamento" value={query} onChange={event => setQuery(event.target.value)} /></div>
             <label className="filter"><span><Accessibility /> Mostrar apenas acessíveis</span><input type="checkbox" checked={onlyAccessible} onChange={event => setOnlyAccessible(event.target.checked)} /></label>
             {destinationCoordinates
@@ -596,7 +602,7 @@ export default function App() {
               ['voice', 'Orientação por áudio', Volume2],
               ['contrast', 'Alto contraste', Eye]
             ].map(([key, label, Icon]) => <label className="pref" key={key}><Icon />{label}<input type="checkbox" checked={Boolean(profile[key])} onChange={event => setProfile(current => ({ ...current, [key]: event.target.checked }))} /></label>)}
-          </div><div className="panel"><h3>Planejar rota acessível</h3>{destinationSearch('Ver no mapa')}<MapArt center={mapCenter} title="Mapa para planejar rota" places={destinationCoordinates ? mapPlaces : destinationPlaces} osmParking={filteredOsmParking} destinationCoordinates={destinationCoordinates} />
+          </div><div className="panel"><h3>Planejar rota acessível</h3>{destinationSearch('Ver no mapa')}<MapArt center={mapCenter} title="Mapa para planejar rota" places={destinationCoordinates ? mapPlaces : destinationPlaces} osmParking={filteredOsmParking} osmRoads={osmRoads} destinationCoordinates={destinationCoordinates} />
             <p className="green">✓ {profile.wheelchair ? 'Exibir vagas acessíveis primeiro' : 'Preferências de mobilidade aplicadas'}<br />ⓘ As condições precisam de confirmação local</p>
             <button className="wide" onClick={locateDestination}>Buscar destino no mapa →</button>
           </div></div><Note title="Inclusão de verdade">As informações precisam ser validadas com pessoas com deficiência. O mapa não certifica a acessibilidade real dos locais.</Note></>}
@@ -817,7 +823,7 @@ function AddressAutocomplete({ value, onChange, onSelect, onSearch, center, sele
   </div>;
 }
 
-function MapArt({ center, title, places = [], osmParking = [], userLocation, routeCoordinates = [], destinationCoordinates }) {
+function MapArt({ center, title, places = [], osmParking = [], osmRoads = [], userLocation, routeCoordinates = [], destinationCoordinates }) {
   const mapElement = useRef(null);
   const mapInstance = useRef(null);
 
@@ -840,6 +846,49 @@ function MapArt({ center, title, places = [], osmParking = [], userLocation, rou
     const map = mapInstance.current;
     if (!map) return;
     const layers = L.featureGroup().addTo(map);
+
+    if (destinationCoordinates) {
+      osmRoads.forEach((road, roadIndex) => {
+        const tags = road.tags || {};
+        const parkingRestrictions = [
+          tags['parking:lane'],
+          tags['parking:lane:left'],
+          tags['parking:lane:right'],
+          tags['parking:lane:both'],
+          tags['parking:condition'],
+          tags['parking:condition:left'],
+          tags['parking:condition:right']
+        ].filter(Boolean).join(' ').toLowerCase();
+        const explicitlyForbidden = /(^|[\s;,])(no|none|forbidden|prohibited|private)([\s;,]|$)/.test(parkingRestrictions)
+          || ['no', 'private', 'customers', 'destination'].includes((tags.access || '').toLowerCase());
+        const explicitOccupied = /full|occupied/.test(parkingRestrictions);
+        const numericId = Number(String(road.id).replace(/\D/g, '').slice(-6)) || roadIndex + 1;
+        const status = explicitlyForbidden
+          ? 'forbidden'
+          : explicitOccupied || numericId % 7 === 0
+            ? 'occupied'
+            : 'free';
+        const colors = { free: '#35d07f', forbidden: '#a855f7', occupied: '#ef4444' };
+        const labels = { free: 'Estacionamento permitido - demonstração', forbidden: 'Estacionamento proibido', occupied: 'Vaga ocupada - demonstração' };
+
+        L.polyline(road.geometry.map(point => [point.lat, point.lon]), {
+          color: '#071019',
+          weight: 12,
+          opacity: 0.65,
+          lineCap: 'round',
+          lineJoin: 'round'
+        }).addTo(layers);
+        const roadLine = L.polyline(road.geometry.map(point => [point.lat, point.lon]), {
+          color: colors[status],
+          weight: 7,
+          opacity: 0.98,
+          lineCap: 'round',
+          lineJoin: 'round'
+        }).bindTooltip(`${road.name} - ${labels[status]}`, { sticky: true }).addTo(layers);
+        roadLine.bindPopup(`<strong>${road.name}</strong><p>${labels[status]}</p><small>Classificação ilustrativa para demonstração visual.</small>`);
+      });
+    }
+
     places.filter(place => place.spots > 0).forEach(place => {
       const isStreet = place.type === 'street';
       const typeLabel = isStreet ? 'Vaga de rua' : 'Estacionamento';
@@ -951,7 +1000,7 @@ function MapArt({ center, title, places = [], osmParking = [], userLocation, rou
       map.setView(center, 15);
     }
     return () => map.removeLayer(layers);
-  }, [center, places, osmParking, userLocation, routeCoordinates, destinationCoordinates]);
+  }, [center, places, osmParking, osmRoads, userLocation, routeCoordinates, destinationCoordinates]);
 
   return <div className="map-frame" role="region" aria-label={title}><div className="leaflet-map" ref={mapElement} /></div>;
 }
@@ -963,7 +1012,7 @@ function Note({ title, children }) { return <div className="note"><b>{title}</b>
 function Legend({ osm = false }) {
   return <div className="legend">
     {osm
-      ? <><span><i className="street-slot-key free-slot-key" /> Azul = livre na simulação</span><span><i className="street-slot-key occupied-slot-key" /> Vermelho = ocupada na simulação</span><span>P = Estacionamento ilustrativo</span><span>♿ = Acessibilidade indicada (demonstração)</span><span>P = Estacionamento mapeado no OSM</span><span>♿ = Acessibilidade mapeada no OSM</span><span>Traços posicionados em vias do OpenStreetMap no raio</span></>
+      ? <><span><i className="road-status-key road-free-key" /> Verde = permitido na simulação</span><span><i className="road-status-key road-forbidden-key" /> Roxo = estacionamento proibido</span><span><i className="road-status-key road-occupied-key" /> Vermelho = ocupada na simulação</span><span>P = Estacionamento mapeado no OSM</span><span>♿ = Acessibilidade mapeada no OSM</span><span>Todas as vias dentro do raio</span></>
       : <><span>P = Estacionamento ilustrativo</span><span><i className="street-slot-key free-slot-key" /> Azul = livre na simulação</span><span><i className="street-slot-key occupied-slot-key" /> Vermelho = ocupada na simulação</span><span>♿ = Acessibilidade indicada (demonstração)</span><span>⚠ Alerta</span></>}
   </div>;
 }

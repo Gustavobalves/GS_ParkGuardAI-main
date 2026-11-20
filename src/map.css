@@ -181,6 +181,20 @@
   vertical-align: middle;
 }
 
+.road-status-key {
+  display: inline-block;
+  width: 30px;
+  height: 7px;
+  border: 1px solid rgba(255, 255, 255, .75);
+  border-radius: 99px;
+  vertical-align: middle;
+  box-shadow: 0 1px 5px #0008;
+}
+
+.road-free-key { background: #35d07f; }
+.road-forbidden-key { background: #a855f7; }
+.road-occupied-key { background: #ef4444; }
+
 .suggestion-region {
   border-bottom: 1px solid #282e45;
   color: #83dcb1;
