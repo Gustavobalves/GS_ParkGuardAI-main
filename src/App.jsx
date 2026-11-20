@@ -5,12 +5,13 @@ import './map.css';
 import {
   Accessibility, Bell, CarFront, Eye, Home, Map, MapPin, Menu, Plus, Search,
   ShieldCheck, TriangleAlert, User, Volume2, X, Route, EyeOff, LockKeyhole,
-  Mail, Settings, Check, RotateCcw
+  Mail, Settings, Check, RotateCcw, LocateFixed
 } from 'lucide-react';
 import './auth.css';
 
 const accountsKey = 'parkguard.accounts';
 const sessionKey = 'parkguard.session';
+const saoPauloCenter = [-23.5614, -46.6559];
 const initialPlaces = [
   { id: 1, n: 'Estacionamento Central', a: 'Av. Paulista, 1000', d: '120 m', price: 'R$ 12/h', spots: 8, access: true, ramp: true, side: true, type: 'parking', coordinates: [-23.5631, -46.6544] },
   { id: 2, n: 'Garagem Bela Vista', a: 'Rua Itapeva, 220', d: '350 m', price: 'R$ 9/h', spots: 3, access: false, type: 'parking', coordinates: [-23.5597, -46.6524] },
@@ -98,6 +99,12 @@ function distanceInMeters([lat1, lon1], [lat2, lon2]) {
   const haversine = Math.sin(latitudeDifference / 2) ** 2
     + Math.cos(radians(lat1)) * Math.cos(radians(lat2)) * Math.sin(longitudeDifference / 2) ** 2;
   return 6371000 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+function isWithinSaoPaulo(location) {
+  return Array.isArray(location)
+    && location.every(Number.isFinite)
+    && distanceInMeters(saoPauloCenter, location) <= 35000;
 }
 
 function formatDistance(meters) {
@@ -202,7 +209,7 @@ function AuthScreen({ onLogin }) {
         <span className="chip">MOBILIDADE PARA TODOS</span>
         <h1>Sua jornada,<br /><em>sem barreiras.</em></h1>
         <p>Encontre vagas, planeje rotas e receba informações que respeitam as suas necessidades.</p>
-        <MapArt center={[-23.5614, -46.6559]} title="Mapa de São Paulo" />
+        <MapArt center={saoPauloCenter} title="Mapa de São Paulo" />
       </div>
       <small className="auth-credit">MAPA © OpenStreetMap contributors</small>
     </section>
@@ -295,8 +302,9 @@ export default function App() {
   const [osmParkingError, setOsmParkingError] = useState('');
   const osmRequestId = useRef(0);
   const osmRequestController = useRef(null);
-  const [mapCenter, setMapCenter] = useState([-23.5614, -46.6559]);
+  const [mapCenter, setMapCenter] = useState(saoPauloCenter);
   const [userLocation, setUserLocation] = useState(null);
+  const [locationStatus, setLocationStatus] = useState('São Paulo');
   const [routeCoordinates, setRouteCoordinates] = useState([]);
   const [mapBusy, setMapBusy] = useState(false);
   const [modal, setModal] = useState(false);
@@ -321,6 +329,39 @@ export default function App() {
   const logout = () => {
     localStorage.removeItem(sessionKey);
     setAuthenticated(false);
+  };
+
+  const requestCurrentLocation = (notifyResult = true) => {
+    if (!navigator.geolocation) {
+      setLocationStatus('São Paulo');
+      setMapCenter(saoPauloCenter);
+      if (notifyResult) notify('Seu navegador não permite localização. Usando São Paulo como referência.');
+      return;
+    }
+    setLocationStatus('Buscando');
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        const location = [position.coords.latitude, position.coords.longitude];
+        if (!isWithinSaoPaulo(location)) {
+          setUserLocation(null);
+          setLocationStatus('São Paulo');
+          setMapCenter(saoPauloCenter);
+          if (notifyResult) notify('Sua localização está fora de São Paulo. O mapa continua centralizado na cidade.');
+          return;
+        }
+        setUserLocation(location);
+        setLocationStatus('Minha localização');
+        setMapCenter(saoPauloCenter);
+        if (notifyResult) notify('Localização atualizada dentro de São Paulo.');
+      },
+      () => {
+        setUserLocation(null);
+        setLocationStatus('São Paulo');
+        setMapCenter(saoPauloCenter);
+        if (notifyResult) notify('Acesso à localização não autorizado. Usando São Paulo como referência.');
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
   };
 
   const saveProfile = () => {
@@ -424,13 +465,19 @@ export default function App() {
       if (!coordinates) {
         const searchQuery = selectedSuggestion?.label === destination
           ? selectedSuggestion.geocodeQuery
-          : destination;
+          : `${destination}, São Paulo, Brasil`;
         const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=pt-BR&q=${encodeURIComponent(searchQuery)}`;
         const response = await fetch(url);
         if (!response.ok) throw new Error('O serviço de mapas não respondeu. Tente novamente.');
         const [result] = await response.json();
         if (!result) throw new Error('Endereço não encontrado. Tente informar rua, número e cidade.');
         coordinates = [Number(result.lat), Number(result.lon)];
+        if (distanceInMeters(saoPauloCenter, coordinates) > 35000) {
+          throw new Error('Endereço fora da região de São Paulo. Informe um endereço na cidade.');
+        }
+      }
+      if (!coordinates || distanceInMeters(saoPauloCenter, coordinates) > 35000) {
+        throw new Error('Endereço fora da região de São Paulo. Informe um endereço na cidade.');
       }
       setDestinationCoordinates(coordinates);
       setMapCenter(coordinates);
@@ -448,6 +495,9 @@ export default function App() {
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
           );
         });
+        if (!isWithinSaoPaulo(location)) {
+          throw new Error('Sua localização está fora de São Paulo. O destino continua limitado à cidade.');
+        }
         setUserLocation(location);
         const [originLongitude, originLatitude] = location.slice().reverse();
         const [destinationLongitude, destinationLatitude] = coordinates.slice().reverse();
@@ -558,7 +608,12 @@ export default function App() {
     {menu && <div className="shade" onClick={() => setMenu(false)} />}
     <main>
       <header><button className="hamb" onClick={() => setMenu(true)}><Menu /></button><span>PARKGUARD AI　/　{tab}</span>
-        <div className="right"><small>● Sistema operacional</small><Bell /><i>{profile.name[0] || 'P'}</i><button className="logout" onClick={logout}>Sair</button></div>
+        <div className="right">
+          <button className="location-button" type="button" onClick={() => requestCurrentLocation(true)} title="Usar minha localização">
+            <LocateFixed size={15} /><span>{locationStatus}</span>
+          </button>
+          <small>● Sistema operacional</small><Bell /><i>{profile.name[0] || 'P'}</i><button className="logout" onClick={logout}>Sair</button>
+        </div>
       </header>
       <div className="content">
         <div className="heading"><div><label className="muted">CONECTANDO PESSOAS E CIDADES</label>
@@ -728,6 +783,12 @@ function AddressAutocomplete({ value, onChange, onSelect, onSearch, center, sele
             })
             .filter(Boolean)
           : (Array.isArray(result.features) ? result.features : [])
+            .filter(feature => {
+              const [longitude, latitude] = feature.geometry?.coordinates || [];
+              return Number.isFinite(latitude)
+                && Number.isFinite(longitude)
+                && distanceInMeters(saoPauloCenter, [latitude, longitude]) <= 35000;
+            })
             .slice(0, 15)
             .map((feature, index) => {
               const properties = feature.properties || {};
