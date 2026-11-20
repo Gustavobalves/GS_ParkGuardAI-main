@@ -4,7 +4,8 @@ import 'leaflet/dist/leaflet.css';
 import './map.css';
 import {
   Accessibility, Bell, CarFront, Eye, Home, Map, MapPin, Menu, Plus, Search,
-  ShieldCheck, TriangleAlert, User, Volume2, X, Route
+  ShieldCheck, TriangleAlert, User, Volume2, X, Route, EyeOff, LockKeyhole,
+  Mail, Settings, Check, RotateCcw
 } from 'lucide-react';
 import './auth.css';
 
@@ -141,6 +142,7 @@ function AuthScreen({ onLogin }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [hasDisability, setHasDisability] = useState('');
   const [preferences, setPreferences] = useState({ wheelchair: false, visual: false, hearing: false });
   const [error, setError] = useState('');
@@ -205,31 +207,62 @@ function AuthScreen({ onLogin }) {
       <small className="auth-credit">MAPA © OpenStreetMap contributors</small>
     </section>
     <section className="auth-side">
-      <form className="auth-card" onSubmit={submit}>
-        <label className="muted">{mode === 'login' ? 'BEM-VINDO DE VOLTA' : 'CRIE SUA CONTA'}</label>
-        <h2>{mode === 'login' ? 'Acesse sua conta' : 'Vamos nos conhecer?'}</h2>
-        <p>{mode === 'login' ? 'Entre para continuar sua jornada.' : 'Seu perfil ajuda a adaptar rotas e alertas para você.'}</p>
+      <form className={`auth-card ${mode === 'register' ? 'auth-card-register' : ''}`} onSubmit={submit}>
+        <div className="auth-card-head">
+          <div>
+            <label className="muted">{mode === 'login' ? 'BEM-VINDO DE VOLTA' : 'CRIE SUA CONTA'}</label>
+            <h2>{mode === 'login' ? 'Acesse sua conta' : 'Vamos nos conhecer?'}</h2>
+          </div>
+          {mode === 'register' && <span className="auth-step">CADASTRO 1 DE 2</span>}
+        </div>
+        <p>{mode === 'login' ? 'Entre para continuar sua jornada.' : 'Uma conta simples para personalizar sua experiência.'}</p>
+        {mode === 'register' && <div className="auth-progress"><i className="active" /><i /></div>}
         {mode === 'register' && <label className="auth-label">Nome completo
+          <span className="auth-input"><User size={16} />
           <input required autoComplete="name" value={name} onChange={event => setName(event.target.value)} placeholder="Como podemos te chamar?" />
+          </span>
         </label>}
         <label className="auth-label">E-mail
+          <span className="auth-input"><Mail size={16} />
           <input required type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="voce@email.com" />
+          </span>
         </label>
         <label className="auth-label">Senha
-          <input required type="password" minLength={8} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={password} onChange={event => setPassword(event.target.value)} placeholder="Mínimo de 8 caracteres" />
+          <span className="auth-input"><LockKeyhole size={16} />
+          <input required type={showPassword ? 'text' : 'password'} minLength={8} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={password} onChange={event => setPassword(event.target.value)} placeholder="Mínimo de 8 caracteres" />
+          <button type="button" className="password-toggle" aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'} onClick={() => setShowPassword(current => !current)}>
+            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+          </span>
         </label>
         {mode === 'register' && <div className="access-form">
-          <fieldset>
-            <legend>Você tem alguma deficiência ou necessidade de acessibilidade?</legend>
-            <label><input type="radio" name="disability" value="yes" checked={hasDisability === 'yes'} onChange={() => setHasDisability('yes')} required /> Sim</label>
-            <label><input type="radio" name="disability" value="no" checked={hasDisability === 'no'} onChange={() => setHasDisability('no')} /> Não</label>
-          </fieldset>
-          <fieldset>
-            <legend>O que devemos considerar? <small>(marque todas que se aplicam)</small></legend>
-            <label><input type="checkbox" checked={preferences.wheelchair} onChange={() => togglePreference('wheelchair')} /> Mobilidade reduzida ou cadeira de rodas</label>
-            <label><input type="checkbox" checked={preferences.visual} onChange={() => togglePreference('visual')} /> Deficiência visual</label>
-            <label><input type="checkbox" checked={preferences.hearing} onChange={() => togglePreference('hearing')} /> Deficiência auditiva</label>
-          </fieldset>
+          <div className="access-question">
+            <span>Você tem alguma deficiência ou necessidade de acessibilidade?</span>
+            <div className="choice-grid">
+              <label className={hasDisability === 'yes' ? 'choice-card selected' : 'choice-card'}>
+                <input type="radio" name="disability" value="yes" checked={hasDisability === 'yes'} onChange={() => setHasDisability('yes')} required />
+                <Accessibility size={18} /><b>Sim</b>
+              </label>
+              <label className={hasDisability === 'no' ? 'choice-card selected' : 'choice-card'}>
+                <input type="radio" name="disability" value="no" checked={hasDisability === 'no'} onChange={() => setHasDisability('no')} />
+                <Check size={18} /><b>Não</b>
+              </label>
+            </div>
+          </div>
+          <div className="access-question">
+            <span>O que devemos considerar? <small>(opcional)</small></span>
+            <div className="preference-grid">
+              <label className={preferences.wheelchair ? 'preference-card selected' : 'preference-card'}>
+                <input type="checkbox" checked={preferences.wheelchair} onChange={() => togglePreference('wheelchair')} /><Accessibility size={17} /><b>Mobilidade reduzida</b>
+              </label>
+              <label className={preferences.visual ? 'preference-card selected' : 'preference-card'}>
+                <input type="checkbox" checked={preferences.visual} onChange={() => togglePreference('visual')} /><Eye size={17} /><b>Deficiência visual</b>
+              </label>
+              <label className={preferences.hearing ? 'preference-card selected' : 'preference-card'}>
+                <input type="checkbox" checked={preferences.hearing} onChange={() => togglePreference('hearing')} /><Volume2 size={17} /><b>Deficiência auditiva</b>
+              </label>
+            </div>
+          </div>
           <small className="privacy-note">Essas informações ficam salvas apenas neste navegador e podem ser alteradas no perfil.</small>
         </div>}
         {error && <div className="auth-error" role="alert">{error}</div>}
@@ -570,14 +603,54 @@ export default function App() {
 
         {tab === 'Meus trajetos' && <div className="panel"><h3>Atividade recente</h3>{reservation ? <p>▣ {reservation.n} · {reservation.a} · vaga selecionada</p> : <p className="muted">Nenhum trajeto iniciado. Selecione uma vaga no mapa para vê-la aqui.</p>}</div>}
 
-        {tab === 'Perfil' && <div className="panel profile"><div className="avatar">{profile.name[0] || 'P'}</div><h2>{profile.name}</h2><p>{profile.email}</p>
-          <h3>Preferências de acessibilidade</h3><label className="pref"><Accessibility /> Tenho deficiência ou necessidade de acessibilidade<input type="checkbox" checked={Boolean(profile.disability)} onChange={event => setProfile(current => ({ ...current, disability: event.target.checked }))} /></label>
-          {[
-            ['wheelchair', 'Mobilidade reduzida / cadeira de rodas'],
-            ['visual', 'Deficiência visual'],
-            ['hearing', 'Deficiência auditiva']
-          ].map(([key, label]) => <label className="pref" key={key}>{label}<input type="checkbox" checked={Boolean(profile[key])} onChange={event => setProfile(current => ({ ...current, [key]: event.target.checked }))} /></label>)}
-          <button onClick={saveProfile}>Salvar perfil</button>
+        {tab === 'Perfil' && <div className="profile-page">
+          <section className="profile-hero">
+            <div className="profile-avatar-wrap">
+              <div className="profile-avatar">{(profile.name || 'P').trim()[0].toUpperCase()}</div>
+              <span><Check size={12} /></span>
+            </div>
+            <div className="profile-identity">
+              <small>MEMBRO PARKGUARD</small>
+              <h2>{profile.name || 'Usuário'}</h2>
+              <p><Mail size={14} /> {profile.email}</p>
+            </div>
+            <div className="profile-completeness">
+              <small>Perfil completo</small>
+              <b>{Math.round((4 + [profile.disability, profile.wheelchair, profile.visual, profile.hearing].filter(Boolean).length) / 8 * 100)}%</b>
+              <div><i /></div>
+            </div>
+          </section>
+          <div className="profile-layout">
+            <section className="panel profile-account">
+              <div className="profile-section-title"><div><Settings size={18} /><h3>Dados da conta</h3></div><small>EDITÁVEL</small></div>
+              <label>Nome completo<input value={profile.name} onChange={event => setProfile(current => ({ ...current, name: event.target.value }))} placeholder="Seu nome" /></label>
+              <label>E-mail<input value={profile.email} readOnly /></label>
+              <p className="profile-private"><LockKeyhole size={14} /> Seus dados são armazenados apenas neste navegador.</p>
+            </section>
+            <section className="panel profile-preferences">
+              <div className="profile-section-title"><div><Accessibility size={18} /><h3>Acessibilidade</h3></div><small>PERSONALIZAÇÃO</small></div>
+              <label className="profile-toggle featured">
+                <span><i><Accessibility size={18} /></i><span><b>Necessidade de acessibilidade</b><small>Personaliza alertas e opções do app</small></span></span>
+                <input type="checkbox" checked={Boolean(profile.disability)} onChange={event => setProfile(current => ({ ...current, disability: event.target.checked }))} />
+              </label>
+              {[
+                ['wheelchair', 'Mobilidade reduzida', 'Adapta vagas e rotas', Accessibility],
+                ['visual', 'Deficiência visual', 'Ativa recursos visuais e sonoros', Eye],
+                ['hearing', 'Deficiência auditiva', 'Prioriza alertas visuais', Volume2]
+              ].map(([key, label, description, Icon]) => <label className="profile-toggle" key={key}>
+                <span><i><Icon size={18} /></i><span><b>{label}</b><small>{description}</small></span></span>
+                <input type="checkbox" checked={Boolean(profile[key])} onChange={event => setProfile(current => ({ ...current, [key]: event.target.checked }))} />
+              </label>)}
+              <div className="profile-extra-toggles">
+                <label><Volume2 size={16} /> Orientação por áudio <input type="checkbox" checked={Boolean(profile.voice)} onChange={event => setProfile(current => ({ ...current, voice: event.target.checked }))} /></label>
+                <label><Eye size={16} /> Alto contraste <input type="checkbox" checked={Boolean(profile.contrast)} onChange={event => setProfile(current => ({ ...current, contrast: event.target.checked }))} /></label>
+              </div>
+            </section>
+          </div>
+          <div className="profile-actions">
+            <button className="profile-reset" onClick={() => setProfile(current => ({ ...current, disability: false, wheelchair: false, visual: false, hearing: false, voice: true, contrast: false }))}><RotateCcw size={15} /> Restaurar preferências</button>
+            <button className="profile-save" onClick={saveProfile}><Check size={16} /> Salvar alterações</button>
+          </div>
         </div>}
       </div>
     </main>
